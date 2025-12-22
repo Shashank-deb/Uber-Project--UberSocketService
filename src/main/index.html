@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title><!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Spring Boot WebSocket Client</title>
+    <script src="https://cdn.jsdelivr.net/sockjs/1.1.4/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; line-height: 1.6; background-color: #f0f2f5; }
+        .container { max-width: 800px; margin: auto; border: 1px solid #ddd; padding: 25px; border-radius: 12px; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .status-connected { color: #28a745; font-weight: bold; }
+        .status-disconnected { color: #dc3545; font-weight: bold; }
+
+        #list {
+            list-style: none;
+            padding: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse; /* Newest at the bottom, auto-scroll effect */
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+
+        #list li {
+            margin-bottom: 8px;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 5px solid #007bff;
+            background: #f8f9fa;
+        }
+
+        /* Message Type Styling */
+        .chat-msg { border-left-color: #ffc107 !important; background-color: #fffbeb !important; }
+        .private-msg { border-left-color: #e91e63 !important; background-color: #fff0f5 !important; font-weight: 500; }
+        .scheduled-msg { border-left-color: #28a745 !important; font-style: italic; color: #555; }
+        .system-msg { border-left-color: #6c757d !important; color: #6c757d; font-size: 0.9em; }
+
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .input-group { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 200px; }
+
+        input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; outline: none; }
+        input:focus { border-color: #007bff; }
+
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 6px;
+            border: none;
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        .secondary-btn { background: #6c757d; }
+        .secondary-btn:hover { background: #5a6268; }
+
+        hr { margin: 25px 0; border: 0; border-top: 1px solid #eee; }
+        label { font-size: 0.85em; font-weight: bold; color: #444; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>WebSocket Messenger</h2>
+        <div>
+            <span id="status" class="status-disconnected">● Disconnected</span>
+            <button id="connectBtn" class="secondary-btn" onclick="connect()" style="display:none; margin-left: 10px;">Connect</button>
+            <button id="disconnectBtn" class="secondary-btn" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+    </div>
+
+    <hr>
+
+    <h4>1. Connectivity Test</h4>
+    <div class="controls">
+        <div class="input-group">
+            <input type="text" id="pingInput" placeholder="Enter test data...">
+        </div>
+        <button onclick="sendPing()">Send Ping</button>
+    </div>
+
+    <h4>2. Group Chat</h4>
+    <div class="controls">
+        <div class="input-group">
+            <label>Room ID</label>
+            <input type="text" id="roomName" placeholder="e.g. room101">
+        </div>
+        <div class="input-group">
+            <label>Your Name</label>
+            <input type="text" id="chatName" placeholder="Username">
+        </div>
+    </div>
+    <div class="controls">
+        <input type="text" id="chatMessage" placeholder="Message for the room..." style="flex: 2;">
+        <button onclick="subscribeToRoom()" class="secondary-btn">Subscribe</button>
+        <button onclick="sendChat()">Send</button>
+    </div>
+
+    <h4>3. Private Message</h4>
+    <p style="font-size: 0.85em; color: #d81b60;">Routes to: /app/privateChat/{room}/{userId}</p>
+    <div class="controls">
+        <div class="input-group">
+            <input type="text" id="targetUserId" placeholder="Recipient User ID">
+        </div>
+        <div class="input-group" style="flex: 2;">
+            <input type="text" id="privateMsg" placeholder="Secret message...">
+        </div>
+        <button onclick="sendPrivate()" style="background: #e91e63;">Send Private</button>
+    </div>
+
+    <div>
+        <h3>Live Feed:</h3>
+        <ul id="list"></ul>
+    </div>
+</div>
+
+<script>
+    var stompClient = null;
+
+    // Auto-connect
+    document.addEventListener("DOMContentLoaded", function() {
+        connect();
+    });
+
+    function connect() {
+        const socket = new SockJS("http://localhost:2511/ws");
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function (frame) {
+            setConnected(true);
+            renderMessage("System: Connected to WebSocket server.", "system-msg");
+
+            // --- SUBSCRIBE LOGIC ---
+
+            // 1. Subscribe to Ping Response
+            stompClient.subscribe('/topic/ping', function (message) {
+                const body = JSON.parse(message.body);
+                renderMessage("Ping Response: " + body.data);
+            });
+
+            // 2. Subscribe to Scheduled Updates (uncomment in Java to see)
+            stompClient.subscribe('/topic/scheduled', function (message) {
+                renderMessage("Server Broadcast: " + message.body, "scheduled-msg");
+            });
+
+            // 3. Subscribe to Private Queue (FIXED)
+            // This matches: simpleMessageTemplate.convertAndSend("/queue/privateChat", response);
+            stompClient.subscribe('/queue/privateChat', function (message) {
+                const body = JSON.parse(message.body);
+                const chatText = `[PRIVATE] ${body.name}: ${body.message}`;
+                renderMessage(chatText, "private-msg");
+            });
+
+        }, function (error) {
+            console.error("STOMP error: " + error);
+            setConnected(false);
+            renderMessage("Error: Could not connect to server.", "system-msg");
+        });
+    }
+
+    function subscribeToRoom() {
+        const room = document.getElementById("roomName").value;
+        if (!room) {
+            alert("Please enter a Room ID first.");
+            return;
+        }
+
+        const topic = "/topic/message/" + room;
+        renderMessage("System: Subscribed to room: " + room, "system-msg");
+
+        stompClient.subscribe(topic, function (message) {
+            const body = JSON.parse(message.body);
+            const chatText = `[Room: ${room}] ${body.name}: ${body.message}`;
+            renderMessage(chatText, "chat-msg");
+        });
+    }
+
+    function sendPing() {
+        const input = document.getElementById("pingInput");
+        if (stompClient?.connected && input.value) {
+            stompClient.send("/app/ping", {}, JSON.stringify({'data': input.value}));
+            input.value = "";
+        }
+    }
+
+    function sendChat() {
+        const room = document.getElementById("roomName").value;
+        const name = document.getElementById("chatName").value;
+        const msg = document.getElementById("chatMessage").value;
+
+        if (stompClient?.connected && room && name && msg) {
+            stompClient.send("/app/chat/" + room, {}, JSON.stringify({
+                'name': name,
+                'message': msg
+            }));
+            document.getElementById("chatMessage").value = "";
+        } else {
+            alert("Ensure Room ID, Name, and Message are filled.");
+        }
+    }
+
+    function sendPrivate() {
+        const room = document.getElementById("roomName").value || "default";
+        const userId = document.getElementById("targetUserId").value;
+        const name = document.getElementById("chatName").value || "Anonymous";
+        const msg = document.getElementById("privateMsg").value;
+
+        if (stompClient?.connected && userId && msg) {
+            // Matches @MessageMapping("/privateChat/{room}/{userId}")
+            stompClient.send(`/app/privateChat/${room}/${userId}`, {}, JSON.stringify({
+                'name': name,
+                'message': msg
+            }));
+            document.getElementById("privateMsg").value = "";
+        } else {
+            alert("Enter Target User ID and Message.");
+        }
+    }
+
+    function disconnect() {
+        if (stompClient !== null) stompClient.disconnect();
+        setConnected(false);
+        renderMessage("System: Disconnected.", "system-msg");
+    }
+
+    function setConnected(connected) {
+        document.getElementById("status").innerText = connected ? "● Connected" : "● Disconnected";
+        document.getElementById("status").className = connected ? "status-connected" : "status-disconnected";
+        document.getElementById("disconnectBtn").disabled = !connected;
+        document.getElementById("connectBtn").style.display = connected ? "none" : "inline-block";
+    }
+
+    function renderMessage(text, className) {
+        const list = document.getElementById("list");
+        const li = document.createElement("li");
+        if (className) li.classList.add(className);
+        li.textContent = text;
+        list.appendChild(li); // Using appendChild because column-reverse handles the order
+    }
+</script>
+</body>
+</html></title>
+</head>
+<body>
+
+</body>
+</html>
