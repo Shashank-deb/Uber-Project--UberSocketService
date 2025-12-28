@@ -1,14 +1,18 @@
 package com.example.ubersocketservice.controller;
 
 import com.example.ubersocketservice.dto.RideRequestDTO;
+import com.example.ubersocketservice.dto.RideResponseDTO;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 @Controller
-@RequestMapping("/api/socket")
+@RequestMapping("/api/v1/socket")
 public class DriverRequestController {
     private final SimpMessagingTemplate simpleMessageTemplate;
 
@@ -16,14 +20,22 @@ public class DriverRequestController {
         this.simpleMessageTemplate = simpleMessageTemplate;
     }
 
-    @GetMapping("/newRide")
-    public void raiseRideRequest(@RequestBody RideRequestDTO rideRequestDTO) {
+    @PostMapping("/newRide")
+    public ResponseEntity<Boolean> raiseRideRequest(@RequestBody RideRequestDTO rideRequestDTO) {
+        System.out.println("request for ride received");
         sendDriverNewRideRequest(rideRequestDTO);
+        System.out.println("Request completed");
+        return new ResponseEntity<>(Boolean.TRUE,HttpStatus.OK);
     }
 
-    public void sendDriverNewRideRequest(RideRequestDTO requestDTO) {
+    public void sendDriverNewRideRequest(RideRequestDTO rideRequestDTO) {
         System.out.println("Executed periodic function: ");
         //TODO: Ideally the request should go to nearby drivers , but for simplicity we send it to everyone
-        simpleMessageTemplate.convertAndSend("/topic/rideRequest", requestDTO);
+        simpleMessageTemplate.convertAndSend("/topic/rideRequest", rideRequestDTO);
+    }
+
+    @MessageMapping("/rideResponse")
+    public void rideResponseHandler(RideResponseDTO rideResponseDTO){
+        System.out.println(rideResponseDTO.getResponse());
     }
 }

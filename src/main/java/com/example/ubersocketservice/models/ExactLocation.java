@@ -1,6 +1,9 @@
 package com.example.ubersocketservice.models;
 
-public class ExactLocation{
+import org.springframework.stereotype.Component;
+
+@Component
+public class ExactLocation {
 
     private Double latitude;
     private Double longitude;
