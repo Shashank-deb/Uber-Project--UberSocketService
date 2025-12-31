@@ -4,9 +4,11 @@ import com.example.ubersocketservice.dto.RideRequestDTO;
 import com.example.ubersocketservice.dto.RideResponseDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,8 +36,9 @@ public class DriverRequestController {
         simpleMessageTemplate.convertAndSend("/topic/rideRequest", rideRequestDTO);
     }
 
-    @MessageMapping("/rideResponse")
-    public void rideResponseHandler(RideResponseDTO rideResponseDTO){
-        System.out.println(rideResponseDTO.getResponse());
+    @CrossOrigin(origins = "http://127.0.0.1:5500")
+    @MessageMapping("/rideResponse/{userId}")
+    public void rideResponseHandler(@DestinationVariable String userId, RideResponseDTO rideResponseDTO){
+        System.out.println(rideResponseDTO.getResponse()+" "+userId);
     }
 }
