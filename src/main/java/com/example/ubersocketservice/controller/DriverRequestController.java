@@ -8,8 +8,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
-import org.springframework.messaging.handler.annotation.MessageMapping;
+
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -68,56 +67,35 @@ public class DriverRequestController {
             @PathVariable String driverId,
             @RequestBody RideResponseDTO rideResponseDTO) {
 
-        System.out.println("===========================================");
-        System.out.println("RIDE RESPONSE RECEIVED (REST)");
-        System.out.println("===========================================");
         System.out.println("Driver ID: " + driverId);
         System.out.println("Accepted: " + rideResponseDTO.getResponse());
-        System.out.println("===========================================");
+        System.out.println("Booking ID: " + rideResponseDTO.getBookingId());
 
-        // TODO: Update booking status in database via Booking Service
-        // TODO: Notify passenger that driver accepted
+        // Add the same logic as the WebSocket handler
+        if (rideResponseDTO.getResponse() && rideResponseDTO.getBookingId() != null) {
+            UpdateBookingRequestDTO requestDTO = UpdateBookingRequestDTO.builder()
+                    .driverId(Optional.of(Long.parseLong(driverId)))
+                    .status("SCHEDULED")
+                    .build();
 
-        return new ResponseEntity<>(Boolean.TRUE, HttpStatus.OK);
-    }
+            try {
+                ResponseEntity<UpdateBookingResponseDTO> response = restTemplate.exchange(
+                        "http://localhost:2512/api/v1/booking/" + rideResponseDTO.getBookingId(),
+                        HttpMethod.PUT,
+                        new HttpEntity<>(requestDTO),
+                        UpdateBookingResponseDTO.class
+                );
 
-    /**
-     * WebSocket message handler (alternative way to handle ride response)
-     * Called by: Frontend via stompClient.send()
-     */
-    @MessageMapping("/rideResponse/{userId}")
-    public void rideResponseHandler(
-            @DestinationVariable String userId,
-            RideResponseDTO rideResponseDTO) {
-
-        System.out.println("RIDE RESPONSE RECEIVED (WEBSOCKET)");
-        System.out.println("===========================================");
-        System.out.println("User ID: " + userId);
-        System.out.println("Accepted: " + rideResponseDTO.getResponse());
-        System.out.println("===========================================");
-
-        UpdateBookingRequestDTO requestDTO = UpdateBookingRequestDTO.builder()
-                .driverId(Optional.of(Long.parseLong(userId)))
-                .status("SCHEDULED")
-                .build();
-
-        try {
-            ResponseEntity<UpdateBookingResponseDTO> response = restTemplate.exchange(
-                "http://localhost:2512/api/v1/booking/" + rideResponseDTO.getBookingId(),
-                HttpMethod.PUT,
-                new HttpEntity<>(requestDTO),
-                UpdateBookingResponseDTO.class
-            );
-
-            // You can handle the response here if needed
-            if (response.getStatusCode().is2xxSuccessful()) {
-                System.out.println("Booking updated successfully");
-            } else {
-                System.out.println("Failed to update booking: " + response.getStatusCode());
+                if (response.getStatusCode().is2xxSuccessful()) {
+                    System.out.println("Booking updated successfully");
+                    return new ResponseEntity<>(Boolean.TRUE, HttpStatus.OK);
+                }
+            } catch (Exception e) {
+                System.err.println("Error updating booking: " + e.getMessage());
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            System.err.println("Error updating booking: " + e.getMessage());
-            e.printStackTrace();
         }
+
+        return new ResponseEntity<>(Boolean.FALSE, HttpStatus.OK);
     }
 }
