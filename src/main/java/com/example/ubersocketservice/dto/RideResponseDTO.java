@@ -9,4 +9,5 @@ import lombok.*;
 @AllArgsConstructor
 public class RideResponseDTO {
     public Boolean response;
+    public Long bookingId;
 }

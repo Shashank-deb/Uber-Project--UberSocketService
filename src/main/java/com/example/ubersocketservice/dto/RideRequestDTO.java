@@ -13,4 +13,5 @@ import java.util.List;
 public class RideRequestDTO {
     private Long passengerId;
     private List<Long> driverIds;
+    private Long bookingId;
 }
