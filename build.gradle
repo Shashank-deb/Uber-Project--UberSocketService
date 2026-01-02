@@ -26,10 +26,9 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-websocket-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    // https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-starter-netflix-eureka-client
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client:4.1.1'
     implementation 'com.example:UberProject-EntityService:0.0.8-SNAPSHOT'//common spring library
-
+    implementation 'org.springframework.kafka:spring-kafka:3.1.4'
 }
 
 tasks.named('test') {

@@ -4,6 +4,7 @@ import com.example.ubersocketservice.dto.RideRequestDTO;
 import com.example.ubersocketservice.dto.RideResponseDTO;
 import com.example.ubersocketservice.dto.UpdateBookingRequestDTO;
 import com.example.ubersocketservice.dto.UpdateBookingResponseDTO;
+import com.example.ubersocketservice.producers.KafkaProducerService;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -22,10 +23,12 @@ public class DriverRequestController {
 
     private final SimpMessagingTemplate simpleMessageTemplate;
     private final RestTemplate restTemplate;
+    private final KafkaProducerService kafkaProducerService;
 
-    public DriverRequestController(SimpMessagingTemplate simpleMessageTemplate) {
+    public DriverRequestController(SimpMessagingTemplate simpleMessageTemplate,KafkaProducerService kafkaProducerService) {
         this.simpleMessageTemplate = simpleMessageTemplate;
         restTemplate=new RestTemplate();
+        this.kafkaProducerService=kafkaProducerService;
     }
 
     /**
@@ -95,7 +98,13 @@ public class DriverRequestController {
                 e.printStackTrace();
             }
         }
-
+        kafkaProducerService.publishMessage("sample-topic","Hello");
         return new ResponseEntity<>(Boolean.FALSE, HttpStatus.OK);
+    }
+
+    @GetMapping
+    public Boolean help(){
+        kafkaProducerService.publishMessage("sample-topic","Hello");
+        return true;
     }
 }
